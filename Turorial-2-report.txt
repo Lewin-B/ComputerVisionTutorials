@@ -1,0 +1,269 @@
+Edge detection:
+For the edge detection I used the canny edge detection and probabilistic line transform to draw the lines on the edges. Then I drew these lines on the original image.
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+
+using namespace cv;
+using namespace std;
+
+int main(int argc, char** argv)
+{
+  if (argc != 2)
+  {
+   printf("Usage: ./DisplayImage Image path");
+   return -1;
+  }
+
+  Mat img = imread(argv[1]);
+  Mat dst;
+
+  if (img.empty())
+  {
+   printf("Could not load image");
+   return -1;
+  }
+
+ 
+
+  Canny(img, dst, 200, 250, 3); // Canny edge detection
+
+  vector<Vec4i> linesP; // will hold the results of the detection
+  HoughLinesP(dst, linesP, 1, CV_PI/180, 50, 50, 10 ); // runs the actual detection
+  // Draw the lines
+  for( size_t i = 0; i < linesP.size(); i++ )
+  {
+   Vec4i l = linesP[i];
+   line( dst, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, LINE_AA);
+  }
+
+  imshow("Display Image", dst);
+
+  waitKey();
+   return 0;
+}
+Object Tracking:
+To start with the object tracking I wrote some c++ code to display a video file:
+#include <opencv2/opencv.hpp>
+#include <opencv2/videoio.hpp>
+#include "opencv2/highgui.hpp"
+
+using namespace cv;
+
+
+int main(int argc, char** argv)
+{
+   if (argc != 2) {
+       printf("Usage: ./DisplayImage Video Path");
+       return -1;
+   }
+
+   VideoCapture cap(argv[1]);
+   Mat frame;
+ 
+   if (!cap.isOpened()) {
+       printf("Unable to open file");
+       return -1;
+   }
+
+   while(cap.read(frame)) {
+       imshow("video stream", frame);
+       waitKey(1);
+   }
+
+   cap.release();
+   destroyAllWindows();
+
+   return 0;
+}
+
+Then I added the TrackerKCF function to try to track an object and a sobelExtractor feature extraction given to me by OpenCV:
+#include <opencv2/opencv.hpp>
+#include <opencv2/videoio.hpp>
+#include "opencv2/highgui.hpp"
+#include <opencv2/tracking.hpp>
+
+using namespace cv;
+using namespace std;
+
+// Feature extractor
+void sobelExtractor(const Mat img, const Rect roi, Mat &feat);
+
+int main(int argc, char **argv)
+{
+   if (argc != 2)
+   {
+       printf("Usage: ./DisplayImage Video Path");
+       return -1;
+   }
+
+   // Initialize necessary variables
+   VideoCapture cap(argv[1]);
+   Mat frame;
+   Rect roi;
+
+   // Have user select object
+   cap.read(frame);
+   imshow("Select ROI", frame);
+   roi = selectROI("Select ROI", frame, false);
+   destroyWindow("Select ROI");
+
+   // Check if object is valid
+   if (roi.width == 0 || roi.height == 0)
+   {
+       printf("invalid ROI");
+       return -1;
+   }
+
+   // check if object is valid
+   if (!cap.isOpened())
+   {
+       printf("Unable to open file");
+       return -1;
+   }
+
+   // Initialize tracker
+   Ptr<TrackerKCF> tracker = TrackerKCF::create();
+   tracker->setFeatureExtractor(sobelExtractor);
+   tracker->init(frame, roi);
+
+   // Track ojbect through video
+   while (cap.read(frame))
+   {
+       tracker->update(frame, roi);
+       rectangle(frame, roi, Scalar(255, 0, 0), 2, 1);
+       imshow("video stream", frame);
+       if (waitKey(1) == 27)
+           break;
+   }
+
+   cap.release();
+   destroyAllWindows();
+
+   return 0;
+}
+
+void sobelExtractor(const Mat img, const Rect roi, Mat &feat)...
+
+This worked to an extent but the tracking was easily messed up with slight changes to the object being moved so i tried the same code but with a CRST tracker instead
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/videoio.hpp>
+#include "opencv2/highgui.hpp"
+#include <opencv2/tracking.hpp>
+
+using namespace cv;
+using namespace std;
+
+int main(int argc, char **argv)
+{
+   if (argc != 2)
+   {
+       printf("Usage: ./DisplayImage Video Path");
+       return -1;
+   }
+
+   // Initialize necessary variables
+   VideoCapture cap(argv[1]);
+   Mat frame;
+   Rect roi;
+
+   // Have user select object
+   cap.read(frame);
+   imshow("Select ROI", frame);
+   roi = selectROI("Select ROI", frame, false);
+   destroyWindow("Select ROI");
+
+   // Check if object is valid
+   if (roi.width == 0 || roi.height == 0)
+   {
+       printf("invalid ROI");
+       return -1;
+   }
+
+   // check if object is valid
+   if (!cap.isOpened())
+   {
+       printf("Unable to open file");
+       return -1;
+   }
+
+   // Initialize tracker
+   Ptr<TrackerCSRT> tracker = TrackerCSRT::create();
+   tracker->init(frame, roi);
+
+   // Track ojbect through video
+   while (cap.read(frame))
+   {
+       tracker->update(frame, roi);
+       rectangle(frame, roi, Scalar(255, 0, 0), 2, 1);
+       imshow("video stream", frame);
+       if (waitKey(1) == 27)
+           break;
+   }
+
+   cap.release();
+   destroyAllWindows();
+
+   return 0;
+}
+ 
+
+The CRST tracker worked much better as it wasn't interrupted nearly as easily. I believe this is because the CRST uses color depth so its feature selection is much broader than the KCF so it won't lose the object as easily but it also will be more likely to track other objects. I was having trouble with the usages of the other trackers.
+
+I then wrote some code to try the MIL Tracker with python
+import numpy as np
+import cv2
+
+if __name__ == '__main__':
+   import sys
+   if len(sys.argv) != 2:
+       print("Usage: ./DisplayImage Video Path")
+       sys.exit()
+
+   try: fn = sys.argv[1]
+   except: print("Usage: ./DisplayImage video path")
+
+   cap = cv2.VideoCapture(fn)
+   frame = None
+   roi = None
+
+   if not cap.isOpened():
+       print("Unable to open file")
+       sys.exit()
+
+   ret, frame = cap.read()
+   if not ret:
+       print("unable to read frame")
+       sys.exit()
+   cv2.imshow("Select ROI", frame)
+   roi = cv2.selectROI(frame, False)
+
+   #intialize the tracker
+   tracker = cv2.TrackerMIL_create()
+   tracker.init(frame, roi)
+
+   #Loop through the video
+   while True:
+       success, frame = cap.read()
+       # Check if the video has ended
+       if not success:
+           break
+       # Update the tracker
+       success, roi = tracker.update(frame)
+       # Draw the bounding box around the tracked object
+       if success:
+           x, y, w, h = [int(v) for v in roi]
+           cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+       # Show the frame
+       cv2.imshow("video stream", frame)
+
+       # Wait for the user to press 'Esc' to quit
+       if cv2.waitKey(1) == 27:
+           break
+
+cap.release()
+cv2.destroyAllWindows()
+
+This also wasnt very effective for the fast projectiles i was trying to track but what was unique about this tracker is that even after it lost the object it continued trying to track what the box was surrounding. Overall I believe that KCF tracking is best for tracking objects whose initial appearance do not change, CSRT tracking is best for tracking objects whose surroundings greatly differ from them color wise. And MIL tracking is good for slower moving objects. 

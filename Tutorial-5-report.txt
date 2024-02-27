@@ -1,0 +1,71 @@
+Assignment 1:
+The goal of this assignment was to run the pose caffee model to get the skeletal keypoints specified in the assignment. 
+
+// Specify the paths for the 2 files
+string protoFile = "C:\\Users\\cbobd\\Downloads\\Image\\Tutorial5\\data\\pose_deploy_linevec_faster_4_stages.prototxt";
+string weightsFile = "C:\\Users\\cbobd\\Downloads\\Image\\Tutorial5\\data\\pose_iter_160000.caffemodel";
+
+// Read the network into Memory
+Net net = readNetFromCaffe(protoFile, weightsFile);
+
+// Read in image
+Mat img = imread("C:\\Users\\cbobd\\Downloads\\Image\\Tutorial5\\roger.jpg");
+
+// Image dimensions
+int width = img.cols;
+int height = img.rows;
+
+I started by reading in the weights and protofiles for the neural net. Then i read in the net using those files and read in a sample image to work on. I then got the dimensions for those images
+
+// Prepare neural net blob
+Mat blob = blobFromImage(img, 1.0 / 255, Size(width, height), Scalar(0, 0, 0), false, false);
+	net.setInput(blob);
+
+// Make forward pass
+Mat output = net.forward();
+
+Then I used the blobfromimage function to turn the image into something that can be passed into a neural net. Then I put the blob into the neural net and gave it an output 4d matrix to store the results in. The 4dimensions of the output matrix consist of the imageid, skeletal keypoints, the image height, and the image width
+
+// Identify and draw points
+int H = output.size[2];
+int W = output.size[3];
+int nPoints = 16;
+const double thresh = 0.5;
+Mat imgcopy = img;
+
+Then I got the height and width of the image and initialized the number of points and created an imgcopy to draw on. 
+
+vector<Point> points(nPoints);
+	for (int n = 0; n < nPoints; n++)
+	{
+		// Probability map of corresponding body's part.
+		Mat probMap(H, W, CV_32F, output.ptr(0, n));
+
+		Point2f p(-1, -1);
+		Point maxLoc;
+		double prob;
+		minMaxLoc(probMap, 0, &prob, 0, &maxLoc);
+		if (prob > thresh)
+		{
+			p = maxLoc;
+			p.x *= (float)width / W;
+			p.y *= (float)height / H;
+
+			circle(imgcopy, Point((int)p.x, (int)p.y), 8, Scalar(0, 255, 255), -1);
+			putText(imgcopy, format("%d", n), Point((int)p.x, (int)p.y), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 255), 2);
+
+		}
+		points[n] = p;
+	}
+
+First I make a vector of points that is the size of the earlier initialized nPoints variable. Then I loop through the range of this vector. Then in each loop a probability map is generated for the body part being looked for. Then i intialize a point, a max probability point, and a probability variable. Then I put these variables in the minMaxLoc function which finds the highest and lowest probability areas in the probability map. Then if my given probability is bigger than my decided threshold i draw the point on the body and add it to the points vector. If it isnt then i just add the point to the points vector. 
+
+
+Here is an image of federer with a 10% probability threshold
+
+
+
+Here is messi with a 30% probability threshold
+
+
+

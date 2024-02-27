@@ -1,0 +1,85 @@
+Assignment 1:
+Assignment 1 required the installation of Open CV contrib which I was unable to do on my mac so i switched to a windows system to get this done. Was never able to get this d
+
+Assignment 2:
+
+To start this assignment I loaded in the picture of a chessboard given to me in the Data folder then I counted the corners on the side of the board to get the board size and used that as the board size variabler and then I declared a vector where the 
+
+    // Initialize variables for findChessboardCorners
+   Size boardSize(9,6);
+   vector<Point2f> ptvec;
+
+
+Then I ran a quick check on the image to make sure that the file was found and then entered the image as well as the declared variables into the findchessboard function this function returns two things an array of corners and boolean on if the chessboard was found or not so I stored that in a variable called found
+
+Mat img = imread("C:\\Users\\cbobd\\Downloads\\Image\\data\\chessboard01.jpg", IMREAD_GRAYSCALE);
+   if (img.empty())
+   {
+       printf("Image is empty");
+   }
+   bool found = findChessboardCorners(img, boardSize, ptvec,	CALIB_CB_ADAPTIVE_THRESH);
+
+
+
+Findchessboard Corners uses the harris corner detection function to find the corners of the inputted image, then it uses the board size and the zhang algorithm to refine these corners by using the zhang algorithm to minimize projection error. After this i simply drew the now collected corners onto the image and outputted the image. I had a little trouble getting the image to stay up but i fixed it by increasing the waitkey time to 1000. As well as this i also added in a case handler in case a chessboard was not found
+
+    // If found drawchessboardcorners
+    if (!found)
+    {
+        printf("Could not find corners");
+    }
+    drawChessboardCorners(img, boardSize, ptvec, found);
+    imshow("Chessboard Corners", img);
+    waitKey(100);
+    return 0;
+Next, I wrote a function to get a 3d array of coordinates on the plane z = 0 of a 2d array of coordinates
+
+void arrayTransformation(vector<Point2f>& oldCorners, vector<Point3f>& corners) {
+
+
+    for (int i = 0; i < oldCorners.size(); i++) {
+        Point3f point3d = Point3f(oldCorners[i].x, oldCorners[i].y, 0);
+        corners.push_back(point3d);
+    }
+}
+
+
+
+Then I read the camera parameters given in the data file
+   string filename = "camera_intrinsics.yml";
+   FileStorage fs(filename, FileStorage::READ);
+   Mat intrinsics, distortion;
+   fs["camera_matrix"] >>intrinsics;
+   fs["dist_coefs"] >>distortion;
+
+These parameters are important in order for the SolvePnP to work properly
+Then I ran the function that I made in order to get the Point3f vector of the chessboard points on the plane z = 0 and then created the two placeholders for the output vectors and ran the Solve PnP function.
+vector<point3f> boardPoints;
+   Mat rvec, tvec;
+   arrayTransformation(ptvec, boardPoints);
+   solvePnP(Mat(boardPoints),img, intrinsics, distortion,rvec,tvec);
+My understanding of the solvePnP function is that it takes in a 2d coordinate point and a 3d coordinate point and uses linear algebra to derive the projection matrix and outputs it in the form of a translation vector and rotation vector. After gettin the rvec and tvec i took these two functions and used the projectpoints function to draw a three 3d lines on the chessboard and a square
+vector<Point3f> lines3D;
+    lines3D.push_back(Point3f(3, 0, 0)); // Red line
+    lines3D.push_back(Point3f(0, 3, 0)); // Green line
+    lines3D.push_back(Point3f(0, 0, 3)); // Blue line
+
+    vector<Point2f> redLine2D;
+    projectPoints(lines3D, rvec, tvec, intrinsics, distortion, redLine2D);
+
+    if (redLine2D.empty())
+    {
+        printf("project points error");
+        return -1;
+    }
+
+    for (int i = 0; i < redLine2D.size(); i++)
+    {
+        line(src, ptvec[i], redLine2D[i], Scalar(0, 0, 255), 2); // Draw red line
+        line(src, ptvec[i], redLine2D[i], Scalar(0, 255, 0), 2); // Draw green line
+        line(src, ptvec[i], redLine2D[i], Scalar(255, 0, 0), 2); // Draw blue line
+    }
+Line projection 
+
+
+

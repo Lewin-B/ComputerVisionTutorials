@@ -1,0 +1,291 @@
+Assignment 1: Using GoogleNet for classification
+
+To start this assignment I downloaded the Data folder that came with it. In this folder was a "classification.cpp" file that included code would execute the Image classification using the GoogleNet Neural Net.
+
+ CommandLineParser parser(argc, argv, keys);
+
+    const std::string modelName = parser.get<String>("@alias");
+    const std::string zooFile = parser.get<String>("zoo");
+
+    keys += genPreprocArguments(modelName, zooFile);
+
+    parser = CommandLineParser(argc, argv, keys);
+    parser.about("Use this script to run classification deep learning networks using OpenCV.");
+    if (argc == 1 || parser.has("help"))
+    {
+        parser.printMessage();
+        return 0;
+    }
+
+    float scale = parser.get<float>("scale");
+    Scalar mean = parser.get<Scalar>("mean");
+    bool swapRB = parser.get<bool>("rgb");
+    int inpWidth = parser.get<int>("width");
+    int inpHeight = parser.get<int>("height");
+    String model = findFile(parser.get<String>("model"));
+    String config = findFile(parser.get<String>("config"));
+    String framework = parser.get<String>("framework");
+    int backendId = parser.get<int>("backend");
+    int targetId = parser.get<int>("target");
+
+This code reads in the command line prompts and stores all the necessary variables given. It also handles any error cases for input error. 
+
+if (parser.has("classes"))
+{
+    std::string file = parser.get<String>("classes");
+    std::ifstream ifs(file.c_str());
+    if (!ifs.is_open())
+        CV_Error(Error::StsError, "File " + file + " not found");
+    std::string line;
+    while (std::getline(ifs, line))
+    {
+        classes.push_back(line);
+    }
+}
+
+This code checks that the user input contains the necessary classes and reads the classes into a vector.
+
+Net net = readNet(model, config, framework);
+net.setPreferableBackend(backendId);
+net.setPreferableTarget(targetId);
+
+This code reads in and sets up the Neural Net
+
+VideoCapture cap;
+if (parser.has("input"))
+    cap.open(parser.get<String>("input"));
+else
+    cap.open(0);
+
+This code block checks if the command line prompt has an input and then opens that input and examines it frame by frame.
+
+Mat frame, blob;
+while (waitKey(1) < 0)
+{
+    cap >> frame;
+    if (frame.empty())
+    {
+        waitKey();
+        break;
+    } 
+
+This block of code starts the main loop that reads frames from the input source until a key is pressed. The program reads the next frame from the "VideoCapture" object into a "Mat" object called "frame". If the frame is empty (i.e., the end of the video file is reached or the camera is disconnected), the program waits for a key press and then breaks out of the loop.
+
+blobFromImage(frame, blob, scale, Size(inpWidth, inpHeight), mean, swapRB, false);
+
+This code uses the opencv function "blobfromimage" to turn the selected frame into a blob that can be passed into the neuralnet. The function does this by resizing the image to the input width and input height expected by the neural net. Then it also uses the rest of the parameter to create a 4d blob ready for the neural net to use. 
+
+        //! [Set input blob]
+        net.setInput(blob);
+        //! [Set input blob]
+        //! [Make forward pass]
+        Mat prob = net.forward();
+        //! [Make forward pass]
+
+This code inserts the blob into the neural net and then sends the blob through the neural net with a forward pass. This gives us values for each class. 
+
+        //! [Get a class with a highest score]
+        Point classIdPoint;
+        double confidence;
+        minMaxLoc(prob.reshape(1, 1), 0, &confidence, 0, &classIdPoint);
+        int classId = classIdPoint.x;
+        //! [Get a class with a highest score]
+
+This code uses the minMaxLoc function to get the class with the highest score which allows us to match the image to its most likely class
+
+        // Put efficiency information.
+        std::vector<double> layersTimes;
+        double freq = getTickFrequency() / 1000;
+        double t = net.getPerfProfile(layersTimes) / freq;
+        std::string label = format("Inference time: %.2f ms", t);
+        putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+
+This code stores the efficiency information of the neural net run into different variables
+
+       // Print predicted class.
+        label = format("%s: %.4f", (classes.empty() ? format("Class #%d", classId).c_str() :
+                                                      classes[classId].c_str()),
+                                   confidence);
+
+This code prints out the class with the highest score and some information about the accuracy of the run.
+
+
+
+
+
+
+
+
+Assignment 2: Image segmentation
+
+To start this assignment I created a new cpp file using vs studio 2019 and then used the cmake gui program to make a new project like the last one with the segmentation.cpp file as the executable 
+
+I then imported the same files I used in the last project
+#include <fstream>
+#include <sstream>
+
+#include <opencv2/dnn.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
+
+Then i declared the variables given to me in the assignment
+int main(int argc, char** argv)
+{
+	float confThreshold = 0.5; // Confidence threshold 
+	float maskThreshold = 0.3; // Mask threshold 
+}
+
+Then I used the code snippets given to load in the class names, colors, and network:
+
+// Load names of classes
+string classesFile = "mscoco_labels.names";
+ifstream ifs(classesFile.c_str());
+string line;
+while (getline(ifs, line)) classes.push_back(line);
+Here i load in the name of the class by declaring a string of the location of class names. Then I use the ifstream ifs function to open the file with the name specified by the "classesFile" variable. Then I declare another string called line to store each line read from the file. Then I run a while loop to read each line from the file to the empty line variable until there are no more lines left. After each line is read from the ifs file i add it to the classes vector. 
+
+// Load the colors
+vector<Scalar> colors;
+string colorsFile = "colors.txt";
+ifstream colorFptr(colorsFile.c_str());
+while (getline(colorFptr, line)) {
+    char* pEnd;
+    double r, g, b;
+    r = strtod (line.c_str(), &pEnd);
+    g = strtod (pEnd, NULL);
+    b = strtod (pEnd, NULL);
+    colors.push_back(Scalar(r, g, b, 255.0));
+}
+Then I use this code to get the colors form the the colors.txt file. I use the same ifs process from before but this time i use pointerEnd variable to distinguish the r,g,b values form the file and add those in triples to the colors vector. 
+
+// Give the configuration and weight files for the model
+String textGraph = "./mask_rcnn_inception_v2_coco_2018_01_28.pbtxt";
+String modelWeights = "./mask_rcnn_inception_v2_coco_2018_01_28/frozen_inference_graph.pb";
+Here i just declare the needed variables with the files given to me in the data folder 
+
+// Load the network
+Net net = readNetFromTensorflow(modelWeights, textGraph);
+net.setPreferableBackend(DNN_BACKEND_OPENCV);
+net.setPreferableTarget(DNN_TARGET_CPU);
+Here I read in the mask_rcnn network given to me in the data folder 
+Then I started to implement the code snippets for handling the input
+
+std::string keys =
+	"{ Image     | | Path to image file }"
+	"{ Video     | | Path to video file }"
+	"{ Device     | | Camera Device ID }";
+Here i declared the keys for the parser
+
+// Initialize variables
+	string outputFile;
+	string str;
+	VideoCapture cap;
+	VideoWriter video;
+Then i initialized the variables for the code snippet 
+
+outputFile = "mask_rcnn_out_cpp.avi";
+if (parser.has("image"))
+{
+    // Open the image file
+    str = parser.get<String>("image");
+    ifstream ifile(str);
+    if (!ifile) throw("error");
+    cap.open(str);
+    str.replace(str.end()-4, str.end(), "_mask_rcnn_out.jpg");
+    outputFile = str;
+}
+else if (parser.has("video"))
+{
+    // Open the video file
+    str = parser.get<String>("video");
+    ifstream ifile(str);
+    if (!ifile) throw("error");
+    cap.open(str);
+    str.replace(str.end()-4, str.end(), "_mask_rcnn_out.avi");
+    outputFile = str;
+}
+// Open the webcam
+else cap.open(parser.get<int>("device"));
+ 
+// Get the video writer initialized to save the output video
+if (!parser.has("image")) {
+   video.open(outputFile, VideoWriter::fourcc('M','J','P','G'), 28, Size(cap.get(CAP_PROP_FRAME_WIDTH),      	cap.get(CAP_PROP_FRAME_HEIGHT)));
+}
+Here is the code snippet in which it checks the parse for either an image or a video to read. If the parser has no image or parser than it reads in video from the webcam. If the input is not an image the program begins to save the video file to the output file. 
+
+Next I read in either the image or each frame for the video run it through the mask_rcnn network to get the box, mask, and classification name for the objects in the image. 
+
+// Process frames.
+while (waitKey(1) < 0)
+{
+    // get frame from the video
+    cap >> frame;
+ 
+    // Stop the program if reached end of video
+    if (frame.empty()) {
+        cout << "Done processing !!!" << endl;
+        cout << "Output file is stored as " << outputFile << endl;
+        waitKey(3000);
+        break;
+    }
+    // Create a 4D blob from a frame.
+     blobFromImage(frame, blob, 1.0, Size(frame.cols, frame.rows), Scalar(), true, false);
+ 
+    //Sets the input to the network
+    net.setInput(blob);
+ 
+    // Runs the forward pass to get output from the output layers
+    std::vector<String> outNames(2);
+    outNames[0] = "detection_out_final";
+    outNames[1] = "detection_masks";
+    vector<Mat> outs;
+    net.forward(outs, outNames);
+ 
+    // Extract the bounding box and mask for each of the detected objects
+    postprocess(frame, outs);
+ 
+    // Put efficiency information. The function getPerfProfile returns the overall time for inference(t) and the timings for each of the layers(in layersTimes)
+    vector<double> layersTimes;
+    double freq = getTickFrequency() / 1000;
+    double t = net.getPerfProfile(layersTimes) / freq;
+    string label = format("Mask-RCNN : Inference time for a frame : %.2f ms", t);
+    putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0));
+ 
+    // Write the frame with the detection boxes
+    Mat detectedFrame;
+    frame.convertTo(detectedFrame, CV_8U);
+    if (parser.has("image")) imwrite(outputFile, detectedFrame);
+    else video.write(detectedFrame);
+ 
+    imshow(kWinName, frame);
+}
+
+Here in this code segment just like the last one I take in the given image or frame and turn it into a blob that can be analyzed by the network. Then it creates two vectors a vector of strings for the identified classes in the image and a vector of Matrices for the identified masks for the objects in the image. It then puts thes vectors into the net.forward() function and runs it to get the results. It then gets the efficieceny information and then outputs that as well basing the output on if your input was an image, video, or webcam. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sample Image
+
+
+
+Sample video
+
+https://drive.google.com/file/d/12RvG6pVsidIG4jYotMeYAoKGvxVeH3uI/view?usp=sharing
+
